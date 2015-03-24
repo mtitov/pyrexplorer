@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+
+#
+# Copyright 2015 Mikhail Titov
+#
+# Licensed under the Apache License, Version 2.0 (the 'License');
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Authors:
+# - Shahin Saneinejad, <shahin.saneinejad@gmail.com, github.com/shahin>, 2012
+# - Mikhail Titov, <mikhail.titov@cern.ch>, 2015
+#
+
+import argparse
+import sys
+
+from csv import reader
+
+from pyrexplorer.spade import SPADE
+
+
+def read_csv(filename, delimiter=None):
+    """
+    Read sequences from a CSV file.
+    The CSV contains one line per sequence with columns defined as follows:
+    - First column is a unique integer as sequence ID (sid)
+    - Second column is a sequence-unique integer as event ID (eid)
+    - Each remaining column contains an item as a character string with columns
+      arranged in sequence order
+
+    @param filename: File name.
+    @type filename: str
+    @param delimiter: Separation symbol between columns.
+    @type delimiter: str
+    @return: Dictionary of sequences {sid: {eid: <itemset>}}
+    @rtype: dict
+    """
+    output = {}
+
+    with open(filename) as fd:
+        for line in reader(fd, delimiter=delimiter or ','):
+            output.setdefault(int(line[0]), {})[int(line[1])] = tuple(line[2:])
+
+    return output
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description=('Generate frequent subsequences meeting ' +
+                     'the minimum support threshold.')
+    )
+
+    parser.add_argument(
+        '--file',
+        dest='input_sequence_file',
+        help='A comma-delimited text file containing input sequences.',
+        required=True
+    )
+    parser.add_argument(
+        '--support',
+        dest='minimum_support',
+        type=int,
+        help='The minimum number of occurrences of a frequent sequence.',
+        required=True
+    )
+
+    parser.add_argument(
+        '--k',
+        dest='sequence_length',
+        type=int,
+        help='Pre-defined length of frequent sequences.',
+        required=False
+    )
+
+    args = parser.parse_args(sys.argv[1:])
+
+    spade = SPADE()
+    spade.set(
+        sequences=read_csv(args.input_sequence_file),
+        minimum_support=args.minimum_support
+    )
+
+    for element in spade.execute(sort=True, k=args.sequence_length or None):
+        print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
+                                                   element.support,
+                                                   element.sequence)
