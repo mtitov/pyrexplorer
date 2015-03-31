@@ -97,20 +97,20 @@ class SPADE(object):
 
     def enumerate_frequent_sequences(self, elements, k=None):
         """
-        Compute frequent k-sequences (k > 2).
+        Compute frequent k-sequences (k > 2) with Depth-First Search.
 
         @param elements: List of Element objects.
         @type elements: list
-        @param k: The lenght of output sequences.
+        @param k: The maximum lenght of output sequences.
         @type k: int/None
         @return: List of frequent sequences (elements of type Element).
         @rtype: list
         """
+        if k and len(elements) and len(elements[0]) == k:
+            return []
+
         freq_seq_elements = ElementPool()
         for idx_i in range(len(elements)):
-
-            if k and len(elements[idx_i]) == k:
-                break
 
             freq_seq_inner_elements = ElementPool()
             for idx_j in range(idx_i + 1, len(elements)):

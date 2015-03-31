@@ -32,6 +32,10 @@ class Element(object):
 
         @param sequence: Sequence of itemsets (or single Item object).
         @type sequence: tuple of tuples/type(Item)
+        @param sid: Sequence id.
+        @type sid: int/None
+        @param eid: Event id.
+        @type eid: int/None
         @param events: List of Event objects (with parameters: sid and eid).
         @type events: list
         """
@@ -175,12 +179,12 @@ class Element(object):
 
                 # - create sequence atom -
                 if pair_i.eid < pair_j.eid:
-                    itemset = seq_diff_j[-1] or other.sequence[-1]  # ?!
+                    itemset = seq_diff_j[-1] or other.sequence[-1]
                     atom = self.get_sequence_atom_union(itemset[-1])
                     eid = pair_j.eid
                 # - create sequence atom -
                 elif pair_i.eid > pair_j.eid:
-                    itemset = seq_diff_i[-1] or self.sequence[-1]  # ?!
+                    itemset = seq_diff_i[-1] or self.sequence[-1]
                     atom = other.get_sequence_atom_union(itemset[-1])
                     eid = pair_i.eid
                 # - create event atom -
