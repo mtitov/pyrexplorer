@@ -88,14 +88,14 @@ class Element(object):
             for idx in range(max(len(sequence_i), len(sequence_j))):
 
                 try:
-                    itemset_i = sequence_i[idx]
+                    itemset_i = set(sequence_i[idx])
                 except IndexError:
-                    itemset_i = []
+                    itemset_i = set()
 
                 try:
-                    itemset_j = sequence_j[idx]
+                    itemset_j = set(sequence_j[idx])
                 except IndexError:
-                    itemset_j = []
+                    itemset_j = set()
 
                 diff_i.append(tuple(filter(
                     lambda x: x not in itemset_j, itemset_i)))
