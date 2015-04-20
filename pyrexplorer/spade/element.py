@@ -53,7 +53,7 @@ class Element(object):
 
     def __len__(self):
         """
-        Get lenght of Element's sequence (k: k-sequence).
+        Get length of sequential pattern (k: k-sequence).
 
         @return: Sum of itemset lengths (items per event).
         @rtype: int
@@ -69,6 +69,16 @@ class Element(object):
         @rtype: int
         """
         return len(set([x.sid for x in self.id_list]))
+
+    @property
+    def sequence_length(self):
+        """
+        Get number of itemsets in Element's sequence.
+
+        @return: Number of itemsets in sequence.
+        @rtype: int
+        """
+        return len(self.sequence)
 
     @staticmethod
     def get_difference_sequences(sequence_i, sequence_j):

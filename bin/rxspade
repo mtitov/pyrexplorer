@@ -76,6 +76,14 @@ if __name__ == "__main__":
         required=False
     )
 
+    parser.add_argument(
+        '--top',
+        dest='top_number',
+        type=int,
+        help='The number of top longest sequences.',
+        required=False
+    )
+
     args = parser.parse_args(sys.argv[1:])
 
     spade = SPADE()
@@ -84,7 +92,9 @@ if __name__ == "__main__":
         minimum_support=args.minimum_support
     )
 
-    for element in spade.execute(sort=True, k=args.sequence_length or None):
+    for element in spade.execute(sort=True,
+                                 k=args.sequence_length or None,
+                                 top_number=args.top_number or None):
         print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
                                                    element.support,
                                                    element.sequence)
