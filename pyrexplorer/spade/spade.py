@@ -54,7 +54,7 @@ class SPADE(object):
         for sid in self._sequences:
             sequences.setdefault(sid, [])
             for eid in sorted(self._sequences[sid]):
-                for item in sorted(self._sequences[sid][eid]):
+                for item in sorted(set(self._sequences[sid][eid])):
                     id_lists.\
                         setdefault(item, {}).\
                         setdefault(sid, []).\
@@ -101,7 +101,7 @@ class SPADE(object):
         @return: List of frequent sequences (elements of type Element).
         @rtype: list
         """
-        if k and len(elements) and len(elements[0]) == k:
+        if len(elements) < 2 or (k and len(elements[0]) == k):
             return []
 
         freq_seq_elements = ElementPool()
@@ -113,6 +113,9 @@ class SPADE(object):
                 for element in (elements[idx_i] + elements[idx_j]):
                     if element.support >= self._minimum_support:
                         freq_seq_inner_elements[element.sequence] |= element
+
+            if not len(freq_seq_inner_elements):
+                continue
 
             for element in freq_seq_inner_elements.itervalues():
                 freq_seq_elements[element.sequence] |= element

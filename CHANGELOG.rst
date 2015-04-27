@@ -1,3 +1,6 @@
+ 0.2.1 (2015-04-27)
+  * light enhancements
+
  0.2.0 (2015-04-20)
   * added option to get top-n longest sequential patterns (option "--top n")
 
