@@ -71,7 +71,7 @@ class Element(object):
         return len(set([x.sid for x in self.id_list]))
 
     @property
-    def sequence_length(self):
+    def num_itemsets(self):
         """
         Get number of itemsets in Element's sequence.
 
@@ -208,6 +208,54 @@ class Element(object):
                 elements[atom] |= Element(atom, sid=pair_i.sid, eid=eid)
 
         return elements.values()
+
+    @staticmethod
+    def itemset_is_subitemset(itemset_i, itemset_j):
+        """
+        Check if all items of itemset_i are in itemset_j.
+
+        @param itemset_i: List of items.
+        @type itemset_i: tuple
+        @param itemset_j: List of items.
+        @type itemset_j: tuple
+        @return: Flag that itemset_i in/not in itemset_j.
+        @rtype: bool
+        """
+        itemset_j = set(itemset_j)
+        return not bool(filter(lambda x: x not in itemset_j, itemset_i))
+
+    def is_subelement(self, other):
+        """
+        Check if sequence of self-element is subsequence of other-element.
+
+        @param other: Element object.
+        @type other: Element
+        @return: Flag that self-element is sub-element for other-element.
+        @rtype: bool
+        """
+        output = False
+
+        counter, idx_start_j = 0, 0
+        for idx_i in range(len(self.sequence)):
+            for idx_j in range(idx_start_j, len(other.sequence)):
+
+                if not self.itemset_is_subitemset(
+                        itemset_i=self.sequence[idx_i],
+                        itemset_j=other.sequence[idx_j]):
+                    continue
+
+                counter += 1
+
+                idx_start_j = idx_j + 1
+                break
+
+            if (idx_i + 1) != counter:
+                break
+
+        if counter == len(self.sequence):
+            output = True
+
+        return output
 
     def __eq__(self, other):
         """
