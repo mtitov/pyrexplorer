@@ -60,6 +60,7 @@ if __name__ == "__main__":
         help='A comma-delimited text file containing input sequences.',
         required=True
     )
+
     parser.add_argument(
         '--support',
         dest='minimum_support',
@@ -69,10 +70,10 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        '--k',
-        dest='sequence_length',
+        '--length',
+        dest='maximum_length',
         type=int,
-        help='Pre-defined length of frequent sequences.',
+        help='The maximum length of frequent sequences.',
         required=False
     )
 
@@ -84,16 +85,31 @@ if __name__ == "__main__":
         required=False
     )
 
+    parser.add_argument(
+        '--maximal',
+        dest='maximal_only',
+        action='store_true',
+        help='Only maximal frequent sequences.',
+        default=False
+    )
+
+    parser.add_argument(
+        '--sort',
+        dest='sort',
+        action='store_true',
+        help='Sort output frequent sequences.',
+        default=False
+    )
+
     args = parser.parse_args(sys.argv[1:])
 
     spade = SPADE()
-    spade.set(
-        sequences=read_csv(args.input_sequence_file),
-        minimum_support=args.minimum_support
-    )
+    spade.set(sequences=read_csv(args.input_sequence_file),
+              minimum_support=args.minimum_support)
 
-    for element in spade.execute(sort=True,
-                                 k=args.sequence_length or None,
+    for element in spade.execute(maximal=args.maximal_only,
+                                 sort=args.sort,
+                                 maximum_length=args.maximum_length or None,
                                  top_number=args.top_number or None):
         print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
                                                    element.support,

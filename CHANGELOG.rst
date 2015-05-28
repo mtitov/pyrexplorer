@@ -1,3 +1,10 @@
+ 0.3.2 (2015-05-27)
+  * fixed algorithm implementation (fixed incorrect logic and added corresponding methods, e.g. methods to deal with equivalence classes)
+  * improved memory usage (for long sequences, with length more than 10^3, it is recommended to request maximal frequent sequences only)
+  * option "--k" is changed to the option "--length" (maximum length of frequent sequences)
+  * added option "--maximal" to get only maximal frequent sequences (no sub-sequences of frequent sequences)
+  * added option "--sort" to sort output sequences (base on sequence length)
+
  0.2.1 (2015-04-27)
   * light enhancements
 

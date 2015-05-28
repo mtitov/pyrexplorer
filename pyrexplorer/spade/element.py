@@ -20,11 +20,12 @@ __all__ = [
 from collections import namedtuple, defaultdict
 
 
+Event = namedtuple('Event', ['sid', 'eid'])
+
+
 class Element(object):
 
     """Class represents element from atom set with corresponding id-list."""
-
-    Event = namedtuple('Event', ['sid', 'eid'])
 
     def __init__(self, sequence, sid=None, eid=None, *events):
         """
@@ -46,7 +47,7 @@ class Element(object):
         self.id_list = set()
 
         if sid and eid:
-            self.id_list.add(Element.Event(sid=sid, eid=eid))
+            self.id_list.add(Event(sid=sid, eid=eid))
 
         for event in events:
             self.id_list.add(event)
@@ -61,16 +62,6 @@ class Element(object):
         return sum([len(x) for x in self.sequence])
 
     @property
-    def support(self):
-        """
-        Get Element's sequence support (frequency of sequence).
-
-        @return: Number of distinct sids.
-        @rtype: int
-        """
-        return len(set([x.sid for x in self.id_list]))
-
-    @property
     def num_itemsets(self):
         """
         Get number of itemsets in Element's sequence.
@@ -80,8 +71,18 @@ class Element(object):
         """
         return len(self.sequence)
 
+    @property
+    def support(self):
+        """
+        Get Element's sequence support (frequency of sequence).
+
+        @return: Number of distinct sids.
+        @rtype: int
+        """
+        return len(set([x.sid for x in self.id_list]))
+
     @staticmethod
-    def get_difference_sequences(sequence_i, sequence_j):
+    def get_sequences_diff(sequence_i, sequence_j):
         """
         Get difference between two sequences.
 
@@ -126,10 +127,7 @@ class Element(object):
         @return: United atom.
         @rtype: tuple of tuples
         """
-        _last_itemset = atom[-1]
-        if item not in _last_itemset:
-            _last_itemset += tuple([item])
-        return atom[:-1] + tuple([tuple(sorted(_last_itemset))])
+        return atom[:-1] + tuple([tuple(sorted(set(atom[-1] + tuple([item]))))])
 
     @staticmethod
     def sequence_atom_union(atom, item):
@@ -167,6 +165,46 @@ class Element(object):
         """
         return self.sequence_atom_union(atom=self.sequence, item=item)
 
+    def get_equivalence_relation_diff(self, other):
+        """
+        Get difference between two last itemsets of elements' sequences.
+
+        @param other: Element object.
+        @type other: Element
+        @return: Difference between last itemsets in elements' sequences.
+        @rtype: tuple(<item>/None, <item>/None)
+        """
+        output = [None, None]
+
+        if self.sequence[:-2] == other.sequence[:-2]:
+
+            seq_diff_i, seq_diff_j = self.get_sequences_diff(
+                self.sequence[-2:], other.sequence[-2:])
+
+            if len(seq_diff_i[-1]) == len(seq_diff_j[-1]) == 1:
+                if (not filter(lambda x: len(x), seq_diff_i[:-1])
+                        and not filter(lambda x: len(x), seq_diff_j[:-1])):
+                    output[0] = seq_diff_i[-1][0]
+                    output[1] = seq_diff_j[-1][0]
+
+            elif len(seq_diff_i) > 1 and len(seq_diff_j) > 1:
+
+                if (len(seq_diff_i[-1]) == 1 and len(seq_diff_j[-1]) == 0
+                        and len(seq_diff_j[-2]) == 1
+                        and (self.num_itemsets - other.num_itemsets) == 1):
+                    if (not filter(lambda x: len(x), seq_diff_i[:-1])
+                            and not filter(lambda x: len(x), seq_diff_j[:-2])):
+                        output[0] = seq_diff_i[-1][0]
+
+                elif (len(seq_diff_j[-1]) == 1 and len(seq_diff_i[-1]) == 0
+                        and len(seq_diff_i[-2]) == 1
+                        and (other.num_itemsets - self.num_itemsets) == 1):
+                    if (not filter(lambda x: len(x), seq_diff_i[:-2])
+                            and not filter(lambda x: len(x), seq_diff_j[:-1])):
+                        output[1] = seq_diff_j[-1][0]
+
+        return tuple(output)
+
     def temporal_join(self, other):
         """
         Temporal join (of current element with other one).
@@ -176,11 +214,11 @@ class Element(object):
         @return: New Element objects.
         @rtype: list
         """
-        elements = ElementPool()
+        last_item_i, last_item_j = self.get_equivalence_relation_diff(other)
+        if last_item_i is None and last_item_j is None:
+            return []
 
-        seq_diff_i, seq_diff_j = self.get_difference_sequences(
-            self.sequence, other.sequence)
-
+        elementpool = ElementPool()
         for pair_i in self.id_list:
             for pair_j in other.id_list:
 
@@ -188,53 +226,68 @@ class Element(object):
                     continue
 
                 # - create sequence atom -
-                if pair_i.eid < pair_j.eid:
-                    itemset = seq_diff_j[-1] or other.sequence[-1]
-                    atom = self.get_sequence_atom_union(itemset[-1])
+                if pair_i.eid < pair_j.eid and last_item_j:
+                    atom = self.get_sequence_atom_union(last_item_j)
                     eid = pair_j.eid
                 # - create sequence atom -
-                elif pair_i.eid > pair_j.eid:
-                    itemset = seq_diff_i[-1] or self.sequence[-1]
-                    atom = other.get_sequence_atom_union(itemset[-1])
+                elif pair_i.eid > pair_j.eid and last_item_i:
+                    atom = other.get_sequence_atom_union(last_item_i)
                     eid = pair_i.eid
                 # - create event atom -
-                elif (seq_diff_i[-1] and seq_diff_j[-1]
-                        and seq_diff_i[-1][0] != seq_diff_j[-1][0]):
-                    atom = self.get_event_atom_union(seq_diff_j[-1][0])
+                elif (pair_i.eid == pair_j.eid and last_item_i and last_item_j
+                        and last_item_i != last_item_j):
+                    atom = self.get_event_atom_union(last_item_j)
                     eid = pair_i.eid
                 else:
                     continue
 
-                elements[atom] |= Element(atom, sid=pair_i.sid, eid=eid)
+                elementpool[atom] |= Element(atom, sid=pair_i.sid, eid=eid)
 
-        return elements.values()
+        return elementpool.values()
+
+    def has_equivalence_relation(self, other):
+        """
+        Check that current element has the same prefix as other element.
+
+        @param other: Element object.
+        @type other: Element
+        @return: Flag that both elements are from equivalence class.
+        @rtype: bool
+        """
+        last_item_i, last_item_j = self.get_equivalence_relation_diff(other)
+        return last_item_i is not None or last_item_j is not None
 
     @staticmethod
     def itemset_is_subitemset(itemset_i, itemset_j):
         """
         Check if all items of itemset_i are in itemset_j.
 
-        @param itemset_i: List of items.
+        @param itemset_i: First list of items.
         @type itemset_i: tuple
-        @param itemset_j: List of items.
+        @param itemset_j: Second list of items.
         @type itemset_j: tuple
         @return: Flag that itemset_i in/not in itemset_j.
         @rtype: bool
         """
-        itemset_j = set(itemset_j)
-        return not bool(filter(lambda x: x not in itemset_j, itemset_i))
+        output = True
 
-    def is_subelement(self, other):
+        itemset = set(itemset_j)
+        for x in itemset_i:
+            if x not in itemset:
+                output = False
+                break
+
+        return output
+
+    def has_subsequence(self, other):
         """
-        Check if sequence of self-element is subsequence of other-element.
+        Check if self's sequence is sub-sequence for other's sequence.
 
         @param other: Element object.
         @type other: Element
-        @return: Flag that self-element is sub-element for other-element.
+        @return: Flag that self has sub-sequence for other's sequence.
         @rtype: bool
         """
-        output = False
-
         counter, idx_start_j = 0, 0
         for idx_i in range(len(self.sequence)):
             for idx_j in range(idx_start_j, len(other.sequence)):
@@ -252,10 +305,7 @@ class Element(object):
             if (idx_i + 1) != counter:
                 break
 
-        if counter == len(self.sequence):
-            output = True
-
-        return output
+        return counter == len(self.sequence)
 
     def __eq__(self, other):
         """
@@ -277,8 +327,9 @@ class Element(object):
         @return: Element with events as a union of the events of both Elements.
         @rtype: self
         """
-        if self.sequence == other.sequence:
-            self.id_list |= other.id_list
+        # - for performance enhancement -
+        #if self.sequence == other.sequence:
+        self.id_list |= other.id_list
         return self
 
     def __add__(self, other):

@@ -30,7 +30,7 @@ SPADE
 
     spade = SPADE()
     spade.set(**input_data)
-    for element in spade.execute(sort=False, k=None, top_number=2):
+    for element in spade.execute(sort=False, top_number=2):
         print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
                                                    element.support,
                                                    element.sequence)
