@@ -8,6 +8,6 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
-__all__ = ['SPADE']
+__all__ = ['SPADEm']
 
-from .spade import SPADE
+from .spade import SPADEm

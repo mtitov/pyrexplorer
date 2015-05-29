@@ -16,10 +16,10 @@ Frequent Sequences” by Mohammed J. Zaki and was encouraged by Shahin Saneineja
 Examples
 =====
 
-SPADE
+SPADE(m)
 
-    from pyrexplorer.spade import SPADE
-
+    from pyrexplorer.spade import SPADEm
+    
     input_data = {
         'sequences': {
             1: {2: ('A', 'B', 'C'), 4: ('B', 'C')},
@@ -27,10 +27,10 @@ SPADE
         },
         'minimum_support': 2
     }
-
-    spade = SPADE()
-    spade.set(**input_data)
-    for element in spade.execute(sort=False, top_number=2):
+    
+    spadem = SPADEm()
+    spadem.set(**input_data)
+    for element in spadem.execute(sort=False, top_number=2, max_length=None):
         print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
                                                    element.support,
                                                    element.sequence)

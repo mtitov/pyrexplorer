@@ -207,18 +207,19 @@ class Element(object):
 
     def temporal_join(self, other):
         """
-        Temporal join (of current element with other one).
+        Temporal join of current element with other one (of the same prefix).
 
         @param other: Element object.
         @type other: Element
         @return: New Element objects.
-        @rtype: list
+        @rtype: list/None
         """
         last_item_i, last_item_j = self.get_equivalence_relation_diff(other)
         if last_item_i is None and last_item_j is None:
-            return []
+            return None
 
         elementpool = ElementPool()
+
         for pair_i in self.id_list:
             for pair_j in other.id_list:
 
@@ -244,18 +245,6 @@ class Element(object):
                 elementpool[atom] |= Element(atom, sid=pair_i.sid, eid=eid)
 
         return elementpool.values()
-
-    def has_equivalence_relation(self, other):
-        """
-        Check that current element has the same prefix as other element.
-
-        @param other: Element object.
-        @type other: Element
-        @return: Flag that both elements are from equivalence class.
-        @rtype: bool
-        """
-        last_item_i, last_item_j = self.get_equivalence_relation_diff(other)
-        return last_item_i is not None or last_item_j is not None
 
     @staticmethod
     def itemset_is_subitemset(itemset_i, itemset_j):
@@ -327,9 +316,8 @@ class Element(object):
         @return: Element with events as a union of the events of both Elements.
         @rtype: self
         """
-        # - for performance enhancement -
-        #if self.sequence == other.sequence:
-        self.id_list |= other.id_list
+        if self.sequence == other.sequence:
+            self.id_list |= other.id_list
         return self
 
     def __add__(self, other):

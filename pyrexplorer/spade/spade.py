@@ -11,7 +11,7 @@
 # - Mikhail Titov, <mikhail.titov@cern.ch>, 2015
 #
 
-__all__ = ['SPADE']
+__all__ = ['SPADEm']
 
 from collections import defaultdict
 from itertools import ifilter
@@ -19,7 +19,7 @@ from itertools import ifilter
 from .element import Element, ElementPool
 
 
-class SPADE(object):
+class SPADEm(object):
 
     def __init__(self):
         """Initialization."""
@@ -66,7 +66,7 @@ class SPADE(object):
 
         @param elements: List of Element objects.
         @type elements: list
-        @param top_number: The number of top longest output sequences.
+        @param top_number: The number of top longest output frequent sequences.
         @type top_number: int/None
         """
         for element in elements:
@@ -77,30 +77,53 @@ class SPADE(object):
         """
         Keep only elements with top longest sequential patterns.
 
-        @param top_number: The number of top longest output sequences.
+        @param top_number: The number of top longest output frequent sequences.
         @type top_number: int
         """
         if top_number and len(self._frequent_elementpool) > top_number:
 
-            top_freq_sequences = set(
+            top_frequent_sequences = set(
                 map(lambda x: x.sequence,
                     sorted(self._frequent_elementpool.values(),
                            key=lambda x: (len(x), x.num_itemsets),
                            reverse=True)[:top_number]))
 
             for seq in self._frequent_elementpool.keys():
-                if seq not in top_freq_sequences:
+                if seq not in top_frequent_sequences:
                     del self._frequent_elementpool[seq]
 
-    def generate_frequent_sequences(self, maximal=False, maximum_length=None):
+    @staticmethod
+    def sorted_elements(elements):
+        """
+        Get sorted Element objects.
+
+        @param elements: List of Element objects.
+        @type elements: list
+        @return: Sorted (new) list of Element objects.
+        @rtype: list
+        """
+        output = []
+
+        elements_by_initial_event = {}
+        while len(elements):
+            element = elements.pop()
+            min_eid = min(set([event.eid for event in element.id_list]))
+            elements_by_initial_event.setdefault(min_eid, []).append(element)
+
+        for eid in sorted(elements_by_initial_event.keys()):
+            output.extend(sorted(elements_by_initial_event[eid],
+                                 key=lambda x: (x.num_itemsets, x.sequence)))
+            del elements_by_initial_event[eid]
+
+        return output
+
+    def generate_frequent_sequences(self, max_length=None):
         """
         Compute frequent 1-sequences and 2-sequences.
 
-        @param maximal: Flag to get only maximal frequent sequences.
-        @type maximal: bool
-        @param maximum_length: The maximum length of sequential patterns.
-        @type maximum_length: int/None
-        @return: Two lists of frequent 1- and 2-sequences.
+        @param max_length: The maximum length of sequential patterns.
+        @type max_length: int/None
+        @return: Two lists of frequent 1- and 2-sequences respectively.
         @rtype: tuple(list, list)
         """
         if not self._sequences or not self._minimum_support:
@@ -117,153 +140,110 @@ class SPADE(object):
                         append(eid)
                     sequences[sid].append(item)
 
-        freq_1_seq_elementpool = ElementPool()
+        freq_1s_elementpool = ElementPool()
 
         for item in id_lists:
             if len(id_lists[item]) < self._minimum_support:
                 continue
             for sid in id_lists[item]:
                 for eid in id_lists[item][sid]:
-                    freq_1_seq_elementpool[item] |= \
-                        Element(item, sid=sid, eid=eid)
+                    freq_1s_elementpool[item] |= Element(item, sid=sid, eid=eid)
 
         items_pair_frequency = defaultdict(int)
         for items in sequences.itervalues():
-            items = filter(lambda x: x in freq_1_seq_elementpool, items)
+            items = filter(lambda x: x in freq_1s_elementpool, items)
             for idx_i in range(len(items)):
                 for idx_j in range(idx_i + 1, len(items)):
                     items_pair_frequency[(items[idx_i], items[idx_j])] += 1
 
-        freq_2_seq_elementpool = ElementPool()
+        freq_2s_elementpool = ElementPool()
 
-        if maximum_length is None or maximum_length > 1:
+        if max_length is None or max_length > 1:
             used_freq_items = set()
 
             for item_i, item_j in set(
                     map(lambda x: tuple(sorted(x[0])),
                         ifilter(lambda x: x[1] >= self._minimum_support,
                                 items_pair_frequency.iteritems()))):
-                for element in (freq_1_seq_elementpool[item_i] +
-                                freq_1_seq_elementpool[item_j]):
-                    if element.support < self._minimum_support:
-                        continue
-                    freq_2_seq_elementpool[element.sequence] |= element
-                    used_freq_items.update([item_i, item_j])
+                joined_elements = (freq_1s_elementpool[item_i] +
+                                   freq_1s_elementpool[item_j])
+                if joined_elements is not None:
+                    for element in joined_elements:
+                        if element.support < self._minimum_support:
+                            continue
+                        freq_2s_elementpool[element.sequence] |= element
+                        used_freq_items.update([item_i, item_j])
 
-            if maximal:
-                for item in used_freq_items:
-                    del freq_1_seq_elementpool[item]
+            for item in used_freq_items:
+                del freq_1s_elementpool[item]
 
-        return freq_1_seq_elementpool.values(), freq_2_seq_elementpool.values()
+        return freq_1s_elementpool.values(), freq_2s_elementpool.values()
 
-    def enumerate_frequent_sequences(self, elements, maximal=False,
-                                     maximum_length=None, top_number=None,
-                                     _enh=False):
+    def enumerate_frequent_sequences(self, elements,
+                                     max_length=None, top_number=None):
         """
         Compute frequent k-sequences (k > 2) with Depth-First Search.
 
         @param elements: List of Element objects.
         @type elements: list
-        @param maximal: Flag to get only maximal frequent sequences.
-        @type maximal: bool
-        @param maximum_length: The maximum length of sequential patterns.
-        @type maximum_length: int/None
-        @param top_number: The number of top longest output sequences.
+        @param max_length: The maximum length of sequential patterns.
+        @type max_length: int/None
+        @param top_number: The number of top longest output frequent sequences.
         @type top_number: int/None
-        @param _enh: Performance enhancement (_internal usage_).
-        @type _enh: bool
         """
-        elements.sort(key=lambda x: x.sequence)
+        elements = self.sorted_elements(elements=elements)
         while len(elements):
 
-            # - get elements that belong to one equivalence class -
-            idx, equiv_cls_elements = 0, [elements.pop(0)]
-            while idx < len(elements):
-                if equiv_cls_elements[0].\
-                        has_equivalence_relation(elements[idx]):
-                    equiv_cls_elements.append(elements.pop(idx))
-                else:
-                    idx += 1
-
-            if not maximal:
-                self.add_elements(elements=equiv_cls_elements)
-
-            # - get joined elements (k+1 sequences) -
             frequent_inner_elementpool = ElementPool()
 
-            for idx_i in range(len(equiv_cls_elements)):
-                for idx_j in range(idx_i, len(equiv_cls_elements)):
-                    for element in (equiv_cls_elements[idx_i] +
-                                    equiv_cls_elements[idx_j]):
+            idx, master_element = 0, elements.pop(0)
+            while idx < len(elements):
+                joined_elements = master_element + elements[idx]
+                if joined_elements is not None:  # same equivalence class
+                    for element in joined_elements:
                         if element.support < self._minimum_support:
                             continue
                         frequent_inner_elementpool[element.sequence] |= element
-
-            if maximal and self._frequent_elementpool:
-                for seq in frequent_inner_elementpool.keys():
-                    if not self.is_maximal(frequent_inner_elementpool[seq]):
-                        del frequent_inner_elementpool[seq]
-
-            # - used for performance enhancement (further research is needed) -
-            if _enh and frequent_inner_elementpool:
-                frequent_inner_elements = frequent_inner_elementpool.values()
-                idx_i = 0
-                while idx_i < len(elements):
-                    set_next_idx = True
-                    idx_j = 0
-                    while idx_j < len(frequent_inner_elements):
-                        if elements[idx_i].\
-                                has_subsequence(frequent_inner_elements[idx_j]):
-                            del elements[idx_i]
-                            frequent_inner_elements.append(
-                                frequent_inner_elements.pop(idx_j))
-                            set_next_idx = False
-                            break
-                        else:
-                            idx_j += 1
-                    if set_next_idx:
-                        idx_i += 1
-            # - performance enhancement - end -
+                    del elements[idx]
+                else:
+                    idx += 1
 
             if (len(frequent_inner_elementpool) > 1
-                    and (len(equiv_cls_elements[0]) + 1) != maximum_length):
+                    and (len(master_element) + 1) != max_length):
 
-                # - move to the next level (to get k+2 sequences) -
                 self.enumerate_frequent_sequences(
                     elements=frequent_inner_elementpool.values(),
-                    maximal=maximal,
-                    maximum_length=maximum_length,
-                    top_number=top_number,
-                    _enh=_enh
+                    max_length=max_length,
+                    top_number=top_number
                 )
 
-            else:
+            elif frequent_inner_elementpool:
 
-                # - frequent_inner_elementpool contains 0 or 1 element -
+                freq_elements = []
                 for element in frequent_inner_elementpool.itervalues():
 
-                    if maximal:
-                        for seq in self._frequent_elementpool.keys():
-                            if self._frequent_elementpool[seq].\
-                                    has_subsequence(element):
-                                del self._frequent_elementpool[seq]
+                    if not self.is_maximal(element):
+                        continue
 
-                    self.add_elements(elements=[element], top_number=top_number)
+                    for seq in self._frequent_elementpool.keys():
+                        if self._frequent_elementpool[seq].\
+                                has_subsequence(element):
+                            del self._frequent_elementpool[seq]
 
-    def prune(self, sequence):
-        raise NotImplementedError
+                    freq_elements.append(element)
+                self.add_elements(elements=freq_elements, top_number=top_number)
 
-    def execute(self, maximal=False, sort=False,
-                maximum_length=None, top_number=None):
+            elif self.is_maximal(master_element):
+                self.add_elements(elements=[master_element])
+
+    def execute(self, sort=False, max_length=None, top_number=None):
         """
         Execute SPADE algorithm for defined data with certain minimum support.
 
-        @param maximal: Flag to get only maximal frequent sequences.
-        @type maximal: bool
         @param sort: Flag to sort the output base on sequence length.
         @type sort: bool
-        @param maximum_length: The maximum length of sequential patterns.
-        @type maximum_length: int/None
+        @param max_length: The maximum length of sequential patterns.
+        @type max_length: int/None
         @param top_number: The number of top longest output sequences.
         @type top_number: int/None
         @return: List of frequent sequences (elements of type Element).
@@ -271,23 +251,20 @@ class SPADE(object):
         """
         self._frequent_elementpool.clear()
 
-        freq_1s_elements, freq_2s_elements = self.generate_frequent_sequences(
-            maximal=maximal,
-            maximum_length=maximum_length
-        )
+        freq_1s_elements, freq_2s_elements = \
+            self.generate_frequent_sequences(max_length=max_length)
 
-        self.enumerate_frequent_sequences(
-            elements=freq_2s_elements,
-            maximal=maximal,
-            maximum_length=maximum_length,
-            top_number=top_number
-        )
+        if max_length is None or max_length > 2:
+            self.enumerate_frequent_sequences(elements=freq_2s_elements,
+                                              max_length=max_length,
+                                              top_number=top_number)
 
         self.add_elements(elements=(freq_1s_elements + freq_2s_elements),
                           top_number=top_number)
 
         frequent_elements = self._frequent_elementpool.values()
-        if sort and not top_number:
-            frequent_elements.sort(key=lambda x: len(x))
+        if sort:
+            frequent_elements.\
+                sort(key=lambda x: (len(x), x.num_itemsets, x.sequence))
 
         return frequent_elements

@@ -1,3 +1,8 @@
+ 0.4.0 (2015-05-29)
+  * current implementation of SPADE will produce only maximal sequential patterns (no sub-sequences of frequent sequences)
+  * name of master class is changed from SPADE to SPADEm (where "m" means "maximal")
+  * removed option "--maximal" (it is applied by default)
+
  0.3.2 (2015-05-27)
   * fixed algorithm implementation (fixed incorrect logic and added corresponding methods, e.g. methods to deal with equivalence classes)
   * improved memory usage (for long sequences, with length more than 10^3, it is recommended to request maximal frequent sequences only)

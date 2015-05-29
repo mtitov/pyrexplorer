@@ -19,7 +19,7 @@ import sys
 
 from csv import reader
 
-from pyrexplorer.spade import SPADE
+from pyrexplorer.spade import SPADEm
 
 
 def read_csv(filename, delimiter=None):
@@ -50,17 +50,15 @@ def read_csv(filename, delimiter=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description=('Generate frequent subsequences meeting ' +
+        description=('Generate maximal frequent subsequences meeting ' +
                      'the minimum support threshold.')
     )
-
     parser.add_argument(
         '--file',
         dest='input_sequence_file',
         help='A comma-delimited text file containing input sequences.',
         required=True
     )
-
     parser.add_argument(
         '--support',
         dest='minimum_support',
@@ -68,31 +66,20 @@ if __name__ == "__main__":
         help='The minimum number of occurrences of a frequent sequence.',
         required=True
     )
-
     parser.add_argument(
         '--length',
-        dest='maximum_length',
+        dest='max_length',
         type=int,
         help='The maximum length of frequent sequences.',
         required=False
     )
-
     parser.add_argument(
         '--top',
         dest='top_number',
         type=int,
-        help='The number of top longest sequences.',
+        help='The number of top longest frequent sequences.',
         required=False
     )
-
-    parser.add_argument(
-        '--maximal',
-        dest='maximal_only',
-        action='store_true',
-        help='Only maximal frequent sequences.',
-        default=False
-    )
-
     parser.add_argument(
         '--sort',
         dest='sort',
@@ -103,14 +90,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args(sys.argv[1:])
 
-    spade = SPADE()
-    spade.set(sequences=read_csv(args.input_sequence_file),
-              minimum_support=args.minimum_support)
+    spadem = SPADEm()
+    spadem.set(sequences=read_csv(args.input_sequence_file),
+               minimum_support=args.minimum_support)
 
-    for element in spade.execute(maximal=args.maximal_only,
-                                 sort=args.sort,
-                                 maximum_length=args.maximum_length or None,
-                                 top_number=args.top_number or None):
+    for element in spadem.execute(sort=args.sort,
+                                  max_length=args.max_length or None,
+                                  top_number=args.top_number or None):
         print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
                                                    element.support,
                                                    element.sequence)
