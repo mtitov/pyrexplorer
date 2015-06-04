@@ -1,3 +1,6 @@
+ 0.4.1 (2015-06-04)
+  * performance enhancement
+
  0.4.0 (2015-05-29)
   * current implementation of SPADE will produce only maximal sequential patterns (no sub-sequences of frequent sequences)
   * name of master class is changed from SPADE to SPADEm (where "m" means "maximal")

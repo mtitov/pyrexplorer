@@ -14,5 +14,5 @@ in analyzed data (patterns discovery, i.e. data mining).
 
 __author__ = 'Mikhail Titov'
 __contact__ = 'mikhail.titov@cern.ch'
-__version__ = '0.4.0'
-__date__ = '2015-05-29'
+__version__ = '0.4.1'
+__date__ = '2015-06-04'

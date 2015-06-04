@@ -99,19 +99,17 @@ class Element(object):
             for idx in range(max(len(sequence_i), len(sequence_j))):
 
                 try:
-                    itemset_i = set(sequence_i[idx])
+                    iset_i = set(sequence_i[idx])
                 except IndexError:
-                    itemset_i = set()
+                    iset_i = set()
 
                 try:
-                    itemset_j = set(sequence_j[idx])
+                    iset_j = set(sequence_j[idx])
                 except IndexError:
-                    itemset_j = set()
+                    iset_j = set()
 
-                diff_i.append(tuple(filter(
-                    lambda x: x not in itemset_j, itemset_i)))
-                diff_j.append(tuple(filter(
-                    lambda x: x not in itemset_i, itemset_j)))
+                diff_i.append(tuple([x for x in iset_i if x not in iset_j]))
+                diff_j.append(tuple([x for x in iset_j if x not in iset_i]))
 
         return tuple(diff_i), tuple(diff_j)
 
@@ -182,8 +180,8 @@ class Element(object):
                 self.sequence[-2:], other.sequence[-2:])
 
             if len(seq_diff_i[-1]) == len(seq_diff_j[-1]) == 1:
-                if (not filter(lambda x: len(x), seq_diff_i[:-1])
-                        and not filter(lambda x: len(x), seq_diff_j[:-1])):
+                if (not [x for x in seq_diff_i[:-1] if x]
+                        and not [x for x in seq_diff_j[:-1] if x]):
                     output[0] = seq_diff_i[-1][0]
                     output[1] = seq_diff_j[-1][0]
 
@@ -191,21 +189,21 @@ class Element(object):
 
                 if (len(seq_diff_i[-1]) == 1 and len(seq_diff_j[-1]) == 0
                         and len(seq_diff_j[-2]) == 1
-                        and (self.num_itemsets - other.num_itemsets) == 1):
-                    if (not filter(lambda x: len(x), seq_diff_i[:-1])
-                            and not filter(lambda x: len(x), seq_diff_j[:-2])):
+                        and (len(self.sequence) - len(other.sequence)) == 1):
+                    if (not [x for x in seq_diff_i[:-1] if x]
+                            and not [x for x in seq_diff_j[:-2] if x]):
                         output[0] = seq_diff_i[-1][0]
 
                 elif (len(seq_diff_j[-1]) == 1 and len(seq_diff_i[-1]) == 0
                         and len(seq_diff_i[-2]) == 1
-                        and (other.num_itemsets - self.num_itemsets) == 1):
-                    if (not filter(lambda x: len(x), seq_diff_i[:-2])
-                            and not filter(lambda x: len(x), seq_diff_j[:-1])):
+                        and (len(other.sequence) - len(self.sequence)) == 1):
+                    if (not [x for x in seq_diff_i[:-2] if x]
+                            and not [x for x in seq_diff_j[:-1] if x]):
                         output[1] = seq_diff_j[-1][0]
 
         return tuple(output)
 
-    def temporal_join(self, other):
+    def join(self, other):
         """
         Temporal join of current element with other one (of the same prefix).
 
@@ -278,8 +276,8 @@ class Element(object):
         @rtype: bool
         """
         counter, idx_start_j = 0, 0
-        for idx_i in range(len(self.sequence)):
-            for idx_j in range(idx_start_j, len(other.sequence)):
+        for idx_i in xrange(len(self.sequence)):
+            for idx_j in xrange(idx_start_j, len(other.sequence)):
 
                 if not self.itemset_is_subitemset(
                         itemset_i=self.sequence[idx_i],
@@ -329,7 +327,7 @@ class Element(object):
         @return: New Element objects.
         @rtype: list
         """
-        return self.temporal_join(other)
+        return self.join(other)
 
     def __repr__(self):
         """

@@ -13,8 +13,7 @@
 
 __all__ = ['SPADEm']
 
-from collections import defaultdict
-from itertools import ifilter
+from collections import defaultdict, deque
 
 from .element import Element, ElementPool
 
@@ -82,11 +81,13 @@ class SPADEm(object):
         """
         if top_number and len(self._frequent_elementpool) > top_number:
 
-            top_frequent_sequences = set(
-                map(lambda x: x.sequence,
-                    sorted(self._frequent_elementpool.values(),
-                           key=lambda x: (len(x), x.num_itemsets),
-                           reverse=True)[:top_number]))
+            top_frequent_sequences = set([
+                element.sequence for element in sorted(
+                    self._frequent_elementpool.values(),
+                    key=lambda x: (len(x), x.num_itemsets),
+                    reverse=True
+                )[:top_number]
+            ])
 
             for seq in self._frequent_elementpool.keys():
                 if seq not in top_frequent_sequences:
@@ -105,7 +106,7 @@ class SPADEm(object):
         output = []
 
         elements_by_initial_event = {}
-        while len(elements):
+        for _ in xrange(len(elements)):
             element = elements.pop()
             min_eid = min(set([event.eid for event in element.id_list]))
             elements_by_initial_event.setdefault(min_eid, []).append(element)
@@ -113,7 +114,6 @@ class SPADEm(object):
         for eid in sorted(elements_by_initial_event.keys()):
             output.extend(sorted(elements_by_initial_event[eid],
                                  key=lambda x: (x.num_itemsets, x.sequence)))
-            del elements_by_initial_event[eid]
 
         return output
 
@@ -149,24 +149,25 @@ class SPADEm(object):
                 for eid in id_lists[item][sid]:
                     freq_1s_elementpool[item] |= Element(item, sid=sid, eid=eid)
 
-        items_pair_frequency = defaultdict(int)
+        itemspair_frequency = defaultdict(int)
         for items in sequences.itervalues():
-            items = filter(lambda x: x in freq_1s_elementpool, items)
-            for idx_i in range(len(items)):
-                for idx_j in range(idx_i + 1, len(items)):
-                    items_pair_frequency[(items[idx_i], items[idx_j])] += 1
+            f_items = [x for x in items if x in freq_1s_elementpool]
+            for idx_i in xrange(len(f_items)):
+                for idx_j in xrange(idx_i + 1, len(f_items)):
+                    itemspair_frequency[(f_items[idx_i], f_items[idx_j])] += 1
 
         freq_2s_elementpool = ElementPool()
 
         if max_length is None or max_length > 1:
             used_freq_items = set()
 
-            for item_i, item_j in set(
-                    map(lambda x: tuple(sorted(x[0])),
-                        ifilter(lambda x: x[1] >= self._minimum_support,
-                                items_pair_frequency.iteritems()))):
-                joined_elements = (freq_1s_elementpool[item_i] +
-                                   freq_1s_elementpool[item_j])
+            for item_i, item_j in set([
+                    tuple(sorted(k)) for k, v in itemspair_frequency.iteritems()
+                    if v >= self._minimum_support]):
+
+                joined_elements = freq_1s_elementpool[item_i].\
+                    join(freq_1s_elementpool[item_j])
+
                 if joined_elements is not None:
                     for element in joined_elements:
                         if element.support < self._minimum_support:
@@ -191,36 +192,35 @@ class SPADEm(object):
         @param top_number: The number of top longest output frequent sequences.
         @type top_number: int/None
         """
-        elements = self.sorted_elements(elements=elements)
-        while len(elements):
+        elements_ = deque(self.sorted_elements(elements=elements))
+        while len(elements_):
 
-            frequent_inner_elementpool = ElementPool()
+            frequent_elementpool_ = ElementPool()
 
-            idx, master_element = 0, elements.pop(0)
-            while idx < len(elements):
-                joined_elements = master_element + elements[idx]
+            master_element = elements_.popleft()
+            for _ in xrange(len(elements_)):
+                joined_elements = master_element.join(elements_[0])
                 if joined_elements is not None:  # same equivalence class
                     for element in joined_elements:
-                        if element.support < self._minimum_support:
-                            continue
-                        frequent_inner_elementpool[element.sequence] |= element
-                    del elements[idx]
+                        if element.support >= self._minimum_support:
+                            frequent_elementpool_[element.sequence] |= element
+                    elements_.popleft()
                 else:
-                    idx += 1
+                    elements_.rotate(-1)
 
-            if (len(frequent_inner_elementpool) > 1
+            if (len(frequent_elementpool_) > 1
                     and (len(master_element) + 1) != max_length):
 
                 self.enumerate_frequent_sequences(
-                    elements=frequent_inner_elementpool.values(),
+                    elements=frequent_elementpool_.values(),
                     max_length=max_length,
                     top_number=top_number
                 )
 
-            elif frequent_inner_elementpool:
+            elif frequent_elementpool_:
 
                 freq_elements = []
-                for element in frequent_inner_elementpool.itervalues():
+                for element in frequent_elementpool_.itervalues():
 
                     if not self.is_maximal(element):
                         continue
