@@ -1,3 +1,7 @@
+ 0.4.2 (2015-06-14)
+  * fixed incorrect logic (in Element's method get_equivalence_relation_diff)
+  * performance enhancements (one among others is the removed recursion in SPADEm's method enumerate_frequent_sequences)
+
  0.4.1 (2015-06-04)
   * performance enhancement
 

@@ -8,14 +8,10 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Authors:
-# - Shahin Saneinejad, <shahin.saneinejad@gmail.com, github.com/shahin>, 2012
 # - Mikhail Titov, <mikhail.titov@cern.ch>, 2015
 #
 
-__all__ = [
-    'Element',
-    'ElementPool'
-]
+__all__ = ['Element', 'ElementPool']
 
 from collections import namedtuple, defaultdict
 
@@ -79,7 +75,10 @@ class Element(object):
         @return: Number of distinct sids.
         @rtype: int
         """
-        return len(set([x.sid for x in self.id_list]))
+        sids = set()
+        for event in self.id_list:
+            sids.add(event.sid)
+        return len(sids)
 
     @staticmethod
     def get_sequences_diff(sequence_i, sequence_j):
@@ -96,7 +95,7 @@ class Element(object):
         diff_i, diff_j = [], []
 
         if sequence_i and sequence_j:
-            for idx in range(max(len(sequence_i), len(sequence_j))):
+            for idx in xrange(max(len(sequence_i), len(sequence_j))):
 
                 try:
                     iset_i = set(sequence_i[idx])
@@ -113,55 +112,28 @@ class Element(object):
 
         return tuple(diff_i), tuple(diff_j)
 
-    @staticmethod
-    def event_atom_union(atom, item):
-        """
-        Get event atom (atom and item have the same eid).
-
-        @param atom: Sequence of itemsets.
-        @type atom: tuple of tuples
-        @param item: Item object (str or int).
-        @type item: type(Item)
-        @return: United atom.
-        @rtype: tuple of tuples
-        """
-        return atom[:-1] + tuple([tuple(sorted(set(atom[-1] + tuple([item]))))])
-
-    @staticmethod
-    def sequence_atom_union(atom, item):
-        """
-        Get sequence atom (atom and item have different eids).
-
-        @param atom: Sequence of itemsets.
-        @type atom: tuple of tuples
-        @param item: Item object (str or int).
-        @type item: type(Item)
-        @return: United atom.
-        @rtype: tuple of tuples
-        """
-        return atom + tuple([tuple([item])])
-
     def get_event_atom_union(self, item):
         """
-        Get event atom.
+        Get event atom (self sequence and item have the same eid).
 
         @param item: Item object (str or int).
         @type item: type(Item)
         @return: United atom.
         @rtype: tuple of tuples
         """
-        return self.event_atom_union(atom=self.sequence, item=item)
+        return (self.sequence[:-1] +
+                tuple([tuple(sorted(set(self.sequence[-1] + tuple([item]))))]))
 
     def get_sequence_atom_union(self, item):
         """
-        Get sequence atom.
+        Get sequence atom (self sequence and item have different eids).
 
         @param item: Item object (str or int).
         @type item: type(Item)
         @return: United atom.
         @rtype: tuple of tuples
         """
-        return self.sequence_atom_union(atom=self.sequence, item=item)
+        return self.sequence + tuple([tuple([item])])
 
     def get_equivalence_relation_diff(self, other):
         """
@@ -174,10 +146,11 @@ class Element(object):
         """
         output = [None, None]
 
-        if self.sequence[:-2] == other.sequence[:-2]:
+        max_eq_idx = max(len(self.sequence), len(other.sequence)) - 2
+        if self.sequence[:max_eq_idx] == other.sequence[:max_eq_idx]:
 
             seq_diff_i, seq_diff_j = self.get_sequences_diff(
-                self.sequence[-2:], other.sequence[-2:])
+                self.sequence[max_eq_idx:], other.sequence[max_eq_idx:])
 
             if len(seq_diff_i[-1]) == len(seq_diff_j[-1]) == 1:
                 if (not [x for x in seq_diff_i[:-1] if x]
@@ -187,19 +160,15 @@ class Element(object):
 
             elif len(seq_diff_i) > 1 and len(seq_diff_j) > 1:
 
-                if (len(seq_diff_i[-1]) == 1 and len(seq_diff_j[-1]) == 0
-                        and len(seq_diff_j[-2]) == 1
+                if (len(seq_diff_i[-1]) == len(seq_diff_j[-2]) == 1
+                        and not seq_diff_i[-2] and not seq_diff_j[-1]
                         and (len(self.sequence) - len(other.sequence)) == 1):
-                    if (not [x for x in seq_diff_i[:-1] if x]
-                            and not [x for x in seq_diff_j[:-2] if x]):
-                        output[0] = seq_diff_i[-1][0]
+                    output[0] = seq_diff_i[-1][0]
 
-                elif (len(seq_diff_j[-1]) == 1 and len(seq_diff_i[-1]) == 0
-                        and len(seq_diff_i[-2]) == 1
+                elif (len(seq_diff_j[-1]) == len(seq_diff_i[-2]) == 1
+                        and not seq_diff_j[-2] and not seq_diff_i[-1]
                         and (len(other.sequence) - len(self.sequence)) == 1):
-                    if (not [x for x in seq_diff_i[:-2] if x]
-                            and not [x for x in seq_diff_j[:-1] if x]):
-                        output[1] = seq_diff_j[-1][0]
+                    output[1] = seq_diff_j[-1][0]
 
         return tuple(output)
 
@@ -244,28 +213,6 @@ class Element(object):
 
         return elementpool.values()
 
-    @staticmethod
-    def itemset_is_subitemset(itemset_i, itemset_j):
-        """
-        Check if all items of itemset_i are in itemset_j.
-
-        @param itemset_i: First list of items.
-        @type itemset_i: tuple
-        @param itemset_j: Second list of items.
-        @type itemset_j: tuple
-        @return: Flag that itemset_i in/not in itemset_j.
-        @rtype: bool
-        """
-        output = True
-
-        itemset = set(itemset_j)
-        for x in itemset_i:
-            if x not in itemset:
-                output = False
-                break
-
-        return output
-
     def has_subsequence(self, other):
         """
         Check if self's sequence is sub-sequence for other's sequence.
@@ -279,9 +226,15 @@ class Element(object):
         for idx_i in xrange(len(self.sequence)):
             for idx_j in xrange(idx_start_j, len(other.sequence)):
 
-                if not self.itemset_is_subitemset(
-                        itemset_i=self.sequence[idx_i],
-                        itemset_j=other.sequence[idx_j]):
+                master_itemset = set(other.sequence[idx_j])
+
+                is_subitemset = True
+                for x in self.sequence[idx_i]:
+                    if x not in master_itemset:
+                        is_subitemset = False
+                        break
+
+                if not is_subitemset:
                     continue
 
                 counter += 1

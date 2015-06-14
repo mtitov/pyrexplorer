@@ -70,15 +70,7 @@ class SPADEm(object):
         """
         for element in elements:
             self._frequent_elementpool[element.sequence] |= element
-        self.keep_top_elements(top_number=top_number)
 
-    def keep_top_elements(self, top_number):
-        """
-        Keep only elements with top longest sequential patterns.
-
-        @param top_number: The number of top longest output frequent sequences.
-        @type top_number: int
-        """
         if top_number and len(self._frequent_elementpool) > top_number:
 
             top_frequent_sequences = set([
@@ -108,8 +100,9 @@ class SPADEm(object):
         elements_by_initial_event = {}
         for _ in xrange(len(elements)):
             element = elements.pop()
-            min_eid = min(set([event.eid for event in element.id_list]))
-            elements_by_initial_event.setdefault(min_eid, []).append(element)
+            elements_by_initial_event.\
+                setdefault(min([e.eid for e in element.id_list]), []).\
+                append(element)
 
         for eid in sorted(elements_by_initial_event.keys()):
             output.extend(sorted(elements_by_initial_event[eid],
@@ -192,35 +185,38 @@ class SPADEm(object):
         @param top_number: The number of top longest output frequent sequences.
         @type top_number: int/None
         """
-        elements_ = deque(self.sorted_elements(elements=elements))
-        while len(elements_):
+        deques_ = deque([deque(self.sorted_elements(elements=elements))])
+        while deques_:
 
-            frequent_elementpool_ = ElementPool()
+            current_elements = deques_[0]
+            master_element = current_elements.popleft()
 
-            master_element = elements_.popleft()
-            for _ in xrange(len(elements_)):
-                joined_elements = master_element.join(elements_[0])
+            frequent_inner_elementpool = ElementPool()
+
+            for _ in xrange(len(current_elements)):
+                joined_elements = master_element.join(current_elements[0])
                 if joined_elements is not None:  # same equivalence class
                     for element in joined_elements:
-                        if element.support >= self._minimum_support:
-                            frequent_elementpool_[element.sequence] |= element
-                    elements_.popleft()
+                        if element.support < self._minimum_support:
+                            continue
+                        frequent_inner_elementpool[element.sequence] |= element
+                    current_elements.popleft()
                 else:
-                    elements_.rotate(-1)
+                    current_elements.rotate(-1)
 
-            if (len(frequent_elementpool_) > 1
+            if not current_elements:
+                deques_.popleft()
+
+            if (len(frequent_inner_elementpool) > 1
                     and (len(master_element) + 1) != max_length):
 
-                self.enumerate_frequent_sequences(
-                    elements=frequent_elementpool_.values(),
-                    max_length=max_length,
-                    top_number=top_number
-                )
+                deques_.appendleft(deque(self.sorted_elements(
+                    elements=frequent_inner_elementpool.values())))
 
-            elif frequent_elementpool_:
+            elif frequent_inner_elementpool:
 
                 freq_elements = []
-                for element in frequent_elementpool_.itervalues():
+                for element in frequent_inner_elementpool.itervalues():
 
                     if not self.is_maximal(element):
                         continue
@@ -254,7 +250,7 @@ class SPADEm(object):
         freq_1s_elements, freq_2s_elements = \
             self.generate_frequent_sequences(max_length=max_length)
 
-        if max_length is None or max_length > 2:
+        if freq_2s_elements and (max_length is None or max_length > 2):
             self.enumerate_frequent_sequences(elements=freq_2s_elements,
                                               max_length=max_length,
                                               top_number=top_number)
