@@ -11,61 +11,100 @@
 # - Mikhail Titov, <mikhail.titov@cern.ch>, 2015
 #
 
-__all__ = ['Element', 'ElementPool']
+__all__ = ['Element', 'ElementDict', 'EVENT_ATOM_TYPE', 'SEQUENCE_ATOM_TYPE']
 
-from collections import namedtuple, defaultdict
+from collections import namedtuple
 
+UNKNOWN_ATOM_TYPE = 0
+EVENT_ATOM_TYPE = 1
+SEQUENCE_ATOM_TYPE = 2  # EVENT_ATOM_TYPE < SEQUENCE_ATOM_TYPE
 
 Event = namedtuple('Event', ['sid', 'eid'])
 
 
 class Element(object):
 
-    """Class represents element from atom set with corresponding id-list."""
+    """Class represents atom set with corresponding id-list."""
 
-    def __init__(self, sequence, sid=None, eid=None, *events):
+    def __init__(self, item, prefix=None, conn_type=None, sid=None, eid=None):
         """
         Initialization.
 
-        @param sequence: Sequence of itemsets (or single Item object).
-        @type sequence: tuple of tuples/type(Item)
+        @param item: Atom's last item (i.e. key item).
+        @type item: type(Item)
+        @param prefix: Atom's prefix.
+        @type prefix: tuple/None
+        @param conn_type: Type of atom (how prefix connects to the last item).
+        @type conn_type: int/None
         @param sid: Sequence id.
         @type sid: int/None
         @param eid: Event id.
         @type eid: int/None
-        @param events: List of Event objects (with parameters: sid and eid).
-        @type events: list
         """
-        if not isinstance(sequence, (list, tuple)):
-            sequence = tuple([tuple([sequence])])
+        self.key_item = item
+        self.prefix = prefix
+        self.conn_type = conn_type or UNKNOWN_ATOM_TYPE
 
-        self.sequence = tuple(sequence)
         self.id_list = set()
+        self.update_id_list(sid, eid)
 
-        if sid and eid:
+    def update_id_list(self, sid=None, eid=None, id_list=None):
+        """
+        Update element's id-list with new event(s).
+
+        @param sid: Sequence id.
+        @type sid: int/None
+        @param eid: Event id.
+        @type eid: int/None
+        @param id_list: List of Event objects (with parameters: sid and eid).
+        @type id_list: list/None
+        """
+        if sid is not None and eid is not None:
             self.id_list.add(Event(sid=sid, eid=eid))
+        self.id_list.update(id_list or [])
 
-        for event in events:
-            self.id_list.add(event)
+    @staticmethod
+    def generate_sequence(last_item, prefix=None, is_sequence_atom=False):
+        """
+        Generate atom's sequence (prefix - conn_type - item).
 
-    def __len__(self):
+        @param last_item: Atom's/sequence's last item (key item).
+        @type last_item: type(Item)
+        @param prefix: Atom's prefix.
+        @type prefix: tuple/None
+        @param is_sequence_atom: Flag that it is sequence atom (default=False).
+        @type is_sequence_atom: bool
+        @return: Sequence of itemsets (new atom).
+        @rtype: tuple of tuples
+        """
+        prefix = prefix or ((),)
+        if is_sequence_atom:
+            output = prefix + tuple([tuple([last_item])])
+        else:
+            output = prefix[:-1] + tuple([prefix[-1] + tuple([last_item])])
+
+        return output
+
+    @property
+    def sequence_length(self):
         """
         Get length of sequential pattern (k: k-sequence).
 
         @return: Sum of itemset lengths (items per event).
         @rtype: int
         """
-        return sum([len(x) for x in self.sequence])
+        return sum([len(x) for x in self.prefix or ()]) + 1
 
     @property
-    def num_itemsets(self):
+    def sequence_size(self):
         """
         Get number of itemsets in Element's sequence.
 
         @return: Number of itemsets in sequence.
         @rtype: int
         """
-        return len(self.sequence)
+        return (len(self.prefix or ((),)) +
+                1 if self.conn_type == SEQUENCE_ATOM_TYPE else 0)
 
     @property
     def support(self):
@@ -80,207 +119,117 @@ class Element(object):
             sids.add(event.sid)
         return len(sids)
 
-    @staticmethod
-    def get_sequences_diff(sequence_i, sequence_j):
+    @property
+    def sequence(self):
         """
-        Get difference between two sequences.
+        Element's sequence.
 
-        @param sequence_i: First sequence.
-        @type sequence_i: tuple of tuples
-        @param sequence_j: Second sequence.
-        @type sequence_j: tuple of tuples
-        @return: 2 sequences of diffs between each element of input sequences.
-        @rtype: tuple of 2 sequences (tuple of tuples)
-        """
-        diff_i, diff_j = [], []
-
-        if sequence_i and sequence_j:
-            for idx in xrange(max(len(sequence_i), len(sequence_j))):
-
-                try:
-                    iset_i = set(sequence_i[idx])
-                except IndexError:
-                    iset_i = set()
-
-                try:
-                    iset_j = set(sequence_j[idx])
-                except IndexError:
-                    iset_j = set()
-
-                diff_i.append(tuple([x for x in iset_i if x not in iset_j]))
-                diff_j.append(tuple([x for x in iset_j if x not in iset_i]))
-
-        return tuple(diff_i), tuple(diff_j)
-
-    def get_event_atom_union(self, item):
-        """
-        Get event atom (self sequence and item have the same eid).
-
-        @param item: Item object (str or int).
-        @type item: type(Item)
-        @return: United atom.
+        @return: Sequence (sequential pattern).
         @rtype: tuple of tuples
         """
-        return (self.sequence[:-1] +
-                tuple([tuple(sorted(set(self.sequence[-1] + tuple([item]))))]))
+        return self.generate_sequence(
+            last_item=self.key_item,
+            prefix=self.prefix,
+            is_sequence_atom=(self.conn_type == SEQUENCE_ATOM_TYPE)
+        )
 
-    def get_sequence_atom_union(self, item):
-        """
-        Get sequence atom (self sequence and item have different eids).
-
-        @param item: Item object (str or int).
-        @type item: type(Item)
-        @return: United atom.
-        @rtype: tuple of tuples
-        """
-        return self.sequence + tuple([tuple([item])])
-
-    def get_equivalence_relation_diff(self, other):
-        """
-        Get difference between two last itemsets of elements' sequences.
-
-        @param other: Element object.
-        @type other: Element
-        @return: Difference between last itemsets in elements' sequences.
-        @rtype: tuple(<item>/None, <item>/None)
-        """
-        output = [None, None]
-
-        max_eq_idx = max(len(self.sequence), len(other.sequence)) - 2
-        if self.sequence[:max_eq_idx] == other.sequence[:max_eq_idx]:
-
-            seq_diff_i, seq_diff_j = self.get_sequences_diff(
-                self.sequence[max_eq_idx:], other.sequence[max_eq_idx:])
-
-            if len(seq_diff_i[-1]) == len(seq_diff_j[-1]) == 1:
-                if (not [x for x in seq_diff_i[:-1] if x]
-                        and not [x for x in seq_diff_j[:-1] if x]):
-                    output[0] = seq_diff_i[-1][0]
-                    output[1] = seq_diff_j[-1][0]
-
-            elif len(seq_diff_i) > 1 and len(seq_diff_j) > 1:
-
-                if (len(seq_diff_i[-1]) == len(seq_diff_j[-2]) == 1
-                        and not seq_diff_i[-2] and not seq_diff_j[-1]
-                        and (len(self.sequence) - len(other.sequence)) == 1):
-                    output[0] = seq_diff_i[-1][0]
-
-                elif (len(seq_diff_j[-1]) == len(seq_diff_i[-2]) == 1
-                        and not seq_diff_j[-2] and not seq_diff_i[-1]
-                        and (len(other.sequence) - len(self.sequence)) == 1):
-                    output[1] = seq_diff_j[-1][0]
-
-        return tuple(output)
-
-    def join(self, other):
+    @classmethod
+    def join(cls, element_i, element_j, cmap=None):
         """
         Temporal join of current element with other one (of the same prefix).
 
-        @param other: Element object.
-        @type other: Element
-        @return: New Element objects.
-        @rtype: list/None
+        @param element_i: Element object.
+        @type element_i: Element
+        @param element_j: Element object.
+        @type element_j: Element
+        @param cmap: Co-occurrence Map.
+        @type cmap: dict/None
+        @return: Set of Element objects grouped into ElementDict.
+        @rtype: ElementDict
         """
-        last_item_i, last_item_j = self.get_equivalence_relation_diff(other)
-        if last_item_i is None and last_item_j is None:
-            return None
+        output = ElementDict()
 
-        elementpool = ElementPool()
+        skip_by_cmap = False
+        if cmap:
 
-        for pair_i in self.id_list:
-            for pair_j in other.id_list:
+            if element_i.conn_type == element_j.conn_type == EVENT_ATOM_TYPE:
 
-                if pair_i.sid != pair_j.sid:
-                    continue
+                if (element_i.key_item == element_j.key_item
+                    or (element_i.key_item < element_j.key_item
+                        and (element_j.key_item not in
+                             cmap[element_i.key_item][EVENT_ATOM_TYPE]))
+                    or (element_j.key_item < element_i.key_item
+                        and (element_i.key_item not in
+                             cmap[element_j.key_item][EVENT_ATOM_TYPE]))):
+                    skip_by_cmap = True
 
-                # - create sequence atom -
-                if pair_i.eid < pair_j.eid and last_item_j:
-                    atom = self.get_sequence_atom_union(last_item_j)
-                    eid = pair_j.eid
-                # - create sequence atom -
-                elif pair_i.eid > pair_j.eid and last_item_i:
-                    atom = other.get_sequence_atom_union(last_item_i)
-                    eid = pair_i.eid
-                # - create event atom -
-                elif (pair_i.eid == pair_j.eid and last_item_i and last_item_j
-                        and last_item_i != last_item_j):
-                    atom = self.get_event_atom_union(last_item_j)
-                    eid = pair_i.eid
-                else:
-                    continue
+            elif (element_i.conn_type == SEQUENCE_ATOM_TYPE
+                    and element_j.conn_type == EVENT_ATOM_TYPE):
 
-                elementpool[atom] |= Element(atom, sid=pair_i.sid, eid=eid)
+                if (element_i.key_item not in
+                        cmap[element_j.key_item][SEQUENCE_ATOM_TYPE]):
+                    skip_by_cmap = True
 
-        return elementpool.values()
+            elif (element_j.conn_type == SEQUENCE_ATOM_TYPE
+                    and element_i.conn_type == EVENT_ATOM_TYPE):
 
-    def has_subsequence(self, other):
-        """
-        Check if self's sequence is sub-sequence for other's sequence.
+                if (element_j.key_item not in
+                        cmap[element_i.key_item][SEQUENCE_ATOM_TYPE]):
+                    skip_by_cmap = True
 
-        @param other: Element object.
-        @type other: Element
-        @return: Flag that self has sub-sequence for other's sequence.
-        @rtype: bool
-        """
-        counter, idx_start_j = 0, 0
-        for idx_i in xrange(len(self.sequence)):
-            for idx_j in xrange(idx_start_j, len(other.sequence)):
+        if not skip_by_cmap:
 
-                master_itemset = set(other.sequence[idx_j])
+            for pair_i in element_i.id_list:
+                for pair_j in element_j.id_list:
 
-                is_subitemset = True
-                for x in self.sequence[idx_i]:
-                    if x not in master_itemset:
-                        is_subitemset = False
-                        break
+                    if pair_i.sid != pair_j.sid:
+                        continue
 
-                if not is_subitemset:
-                    continue
+                    # - create event atom -
+                    if pair_i.eid == pair_j.eid:
+                        if (element_i.conn_type != element_j.conn_type
+                                or element_i.key_item == element_j.key_item):
+                            continue
+                        elif element_i.key_item < element_j.key_item:
+                            key_item = element_j.key_item
+                            prefix = element_i.sequence
+                        elif element_i.key_item > element_j.key_item:
+                            key_item = element_i.key_item
+                            prefix = element_j.sequence
 
-                counter += 1
+                        conn_type = EVENT_ATOM_TYPE
+                        eid = pair_i.eid
 
-                idx_start_j = idx_j + 1
-                break
+                    # - create sequence atom -
+                    else:
+                        if pair_i.eid < pair_j.eid:
+                            if element_j.conn_type == EVENT_ATOM_TYPE:
+                                continue
+                            key_item = element_j.key_item
+                            prefix = element_i.sequence
+                            eid = pair_j.eid
 
-            if (idx_i + 1) != counter:
-                break
+                        else:  # pair_i.eid > pair_j.eid
+                            if element_i.conn_type == EVENT_ATOM_TYPE:
+                                continue
+                            key_item = element_i.key_item
+                            prefix = element_j.sequence
+                            eid = pair_i.eid
 
-        return counter == len(self.sequence)
+                        conn_type = SEQUENCE_ATOM_TYPE
 
-    def __eq__(self, other):
-        """
-        Implements the comparison operator "==".
+                    sequence = cls.generate_sequence(
+                        last_item=key_item,
+                        prefix=prefix,
+                        is_sequence_atom=(conn_type == SEQUENCE_ATOM_TYPE)
+                    )
 
-        @param other: Element object.
-        @type other: Element
-        @return: Flag that says two objects are equal or not.
-        @rtype: bool
-        """
-        return self.sequence == other.sequence and self.id_list == other.id_list
+                    if sequence not in output:
+                        output[sequence] = Element(
+                            item=key_item, prefix=prefix, conn_type=conn_type)
+                    output.add_event(key=sequence, sid=pair_i.sid, eid=eid)
 
-    def __ior__(self, other):
-        """
-        Implements the assignment operator "|=".
-
-        @param other: Element object.
-        @type other: Element
-        @return: Element with events as a union of the events of both Elements.
-        @rtype: self
-        """
-        if self.sequence == other.sequence:
-            self.id_list |= other.id_list
-        return self
-
-    def __add__(self, other):
-        """
-        Implements the assignment operator "+".
-
-        @param other: Element object.
-        @type other: Element
-        @return: New Element objects.
-        @rtype: list
-        """
-        return self.join(other)
+        return output
 
     def __repr__(self):
         """
@@ -289,13 +238,119 @@ class Element(object):
         @return: Object description.
         @rtype: str
         """
-        return self.__dict__.__repr__()
+        return '<Element: sequence=%s id_list=%s>' % (self.sequence,
+                                                      self.id_list)
 
 
-class ElementPool(defaultdict):
+class ElementDict(object):
 
-    """Dictionary class with pre-defined value type."""
+    """Class represents dictionary of elements."""
 
-    def __missing__(self, key):
-        self[key] = value = Element(key)  # key can be either <item> or <seq>
-        return value
+    def __init__(self):
+        """Initialization."""
+        self._data = {}
+
+    def get(self, key):
+        """
+        Get element with defined key.
+
+        @param key: Sequence or item.
+        @type key: tuple/type(Item)
+        @return: Element object.
+        @rtype: Element/None
+        """
+        return self._data.get(key)
+
+    def set(self, key, element):
+        """
+        Assign element to the defined key (sequence or item).
+
+        @param key: Sequence or item.
+        @type key: tuple/type(Item)
+        @param element: Element object.
+        @type element: Element
+        """
+        self._data[key] = element
+
+    def remove(self, key):
+        """
+        Remove element with defined key from the dictionary.
+
+        @param key: Sequence or item.
+        @type key: tuple/type(Item)
+        """
+        if key in self:
+            del self._data[key]
+
+    def get_keys(self):
+        """
+        Get keys (sequences or items) of the dictionary.
+
+        @return: List of keys.
+        @rtype: list
+        """
+        return self._data.keys()
+
+    def get_elements(self):
+        """
+        Get elements (without corresponding keys) from the dictionary.
+
+        @return: List of Element objects.
+        @rtype: list
+        """
+        return self._data.values()
+
+    def update(self, key, element):
+        """
+        Update key's element with other element's id-list, if there is no key
+        in dictionary then assign element to the defined key.
+
+        @param key: Sequence or item.
+        @type key: tuple/type(Item)
+        @param element: Element object.
+        @type element: Element
+        """
+        if key in self:
+            self.get(key=key).update_id_list(id_list=element.id_list)
+        else:
+            self.set(key=key, element=element)
+
+    def add_event(self, key, sid, eid):
+        """
+        Add event to the key's element.
+
+        @param key: Sequence or item.
+        @type key: tuple/type(Item)
+        @param sid: Sequence id.
+        @type sid: inte
+        @param eid: Event id.
+        @type eid: int
+        """
+        if key in self:
+            self.get(key=key).update_id_list(sid=sid, eid=eid)
+
+    def items(self):
+        """
+        Generator of (key, element) pairs.
+
+        @return: Key-value pairs (key-element)
+        @rtype: tuple
+        """
+        for key, element in self._data.iteritems():
+            yield key, element
+
+    def clear(self):
+        """Clear dictionary data."""
+        self._data.clear()
+
+    def __getitem__(self, item):
+        return self.get(key=item)
+
+    def __setitem__(self, key, value):
+        self.set(key=key, element=value)
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def __len__(self):
+        return len(self._data)

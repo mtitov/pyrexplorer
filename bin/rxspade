@@ -97,6 +97,6 @@ if __name__ == "__main__":
     for element in spadem.execute(sort=args.sort,
                                   max_length=args.max_length or None,
                                   top_number=args.top_number or None):
-        print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
+        print "k={0:<8}supp={1:<10}seq={2}".format(element.sequence_length,
                                                    element.support,
                                                    element.sequence)

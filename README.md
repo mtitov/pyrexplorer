@@ -22,8 +22,8 @@ SPADE(m)
     
     input_data = {
         'sequences': {
-            1: {2: ('A', 'B', 'C'), 4: ('B', 'C')},
-            2: {3: ('B', 'C')}
+            1: {2: (11, 22, 33), 4: (22, 33)},
+            2: {3: (22, 33)}
         },
         'minimum_support': 2
     }
@@ -31,6 +31,6 @@ SPADE(m)
     spadem = SPADEm()
     spadem.set(**input_data)
     for element in spadem.execute(sort=False, top_number=2, max_length=None):
-        print "k={0:<8}supp={1:<10}seq={2}".format(len(element),
+        print "k={0:<8}supp={1:<10}seq={2}".format(element.sequence_length,
                                                    element.support,
                                                    element.sequence)

@@ -1,3 +1,10 @@
+ 0.5.0 (2015-07-07)
+  * added CMAP (Co-occurrence Map)
+  * new representation of Element class (and created new class ElementDict instead of ElementPool)
+  * updated SPADEm's method sorted_elements (and renamed to "grouped")
+  * improved scheme to pick up "master" elements (special elements that will be merged with others)
+  * performance enhancement
+
  0.4.2 (2015-06-14)
   * fixed incorrect logic (in Element's method get_equivalence_relation_diff)
   * performance enhancements (one among others is the removed recursion in SPADEm's method enumerate_frequent_sequences)
